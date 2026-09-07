@@ -1,0 +1,132 @@
+# Reference Configuration of the pipeline
+# Any values non specified is null + comment explaining why it is and how its unconstrained
+
+
+meta:
+  project: sovereign-default
+  config_version: "0.1.0" # This is the version of the config file // will be incremented
+  frozen: false #Will be set to true when analysis is frozen (tag git)
+
+reference:
+  year_min:1960
+  year_max:2024
+
+# Panel
+panel:
+  key: [iso3, year]
+  # Data Window: what we are downloading and storing in the database
+  data_years: [1960, 2024]
+  # Estimation window: under estimation window, we are estimating the model
+  estimation_years: null
+  default_lag: 1
+  robustness_lag: [2]
+  scope: null
+  exclude_micro_states: null
+  post_entry_ears: drop # drop or keep post entry ears
+
+# Event
+event:
+  source: bocboe
+  reference_definition: null
+  stock_column: tot_ext
+  min_spell_length: 1
+  target: entry # entry et non 'in_default'
+
+materiality:
+  mode: null
+  threshold: null
+  denominator_window: null
+
+robustness_definitions:
+  - D1_externe_strict    
+  - D2_externe_2ans
+  - D3_externe_seuil_10m
+  - D4_prives_seulement
+  - D5_hors_multilateraux
+  - D6_avec_arrieres_domest
+
+# Sources
+sources:
+  bocboe:
+    version: "2025"
+    file: "BoC BoE Database 2025.xlsx"
+    sheet: "Debt_2025"
+    header_row: 64
+    coverage: [1960, 2024]
+    accessed: 2026-09-06
+    licence: public
+  vdem:
+    version: "v16.0"
+    release: 2026-03
+    coverage: [1789, 2025]
+    accessed: 2026-09-04
+    licence: public
+  wdi:
+    version: null                # le WDI est révisé en continu : la date de
+    accessed: null               # consultation FAIT le millésime
+    licence: public
+  ids:
+    version: null
+    accessed: null
+    licence: public
+    note: "couvre les seuls pays déclarants au DRS — pas les économies avancées"
+  weo:
+    version: null                # millésime = édition (ex. 2026-04)
+    accessed: null
+    licence: public
+  polity5:
+    version: "p5v2018"
+    coverage: [1800, 2018]
+    accessed: null
+    licence: public
+    role: robustness             # s'arrête en 2018, coûte 37 entrées (F-003)
+  wgi:
+    role: convergent_validity    # 1996+, coûte 214 entrées : jamais en principal
+    licence: public
+  dpi:
+    version: "DPI2023"
+    coverage: [1975, 2023]
+    accessed: null
+    licence: public
+
+compute:
+  seeds: [11, 23, 37, 41, 59]    # liste, jamais un scalaire : toute performance
+                                 # rapportée l'est avec sa dispersion
+  n_threads: 1                   # >1 casse la reproductibilité bit à bit des
+                                 # ensembles d'arbres (ordre de réduction flottant)
+  deterministic: true
+
+split:
+  # OQ-3.1 NON TRANCHÉE. La stratégie elle-même est un paramètre, pas seulement
+  # ses bornes : une partition unique ne peut pas soutenir un propos sur
+  # l'évolution temporelle, les périodes intéressantes tombant en entraînement.
+  strategy: null                 # "single" | "expanding" | "rolling"
+  single:
+    T1: null                     # bornes conditionnées au comptage d'événements
+    T2: null                     # par bloc — chaque bloc doit être estimable
+  window:
+    train_years: null
+    test_years: null
+    step: null
+  # Seconde partition, transversale : teste si le bloc volonté fonctionne comme
+  # proxy d'identité pays. Si le modèle s'effondre ici, son apport était de la
+  # mémorisation.
+  leave_one_country_out: true
+  min_events_per_block: 30       # plancher sous lequel un bloc n'est pas évaluable
+
+evaluation:
+  primary: pr_gain               # l'AUC-PR n'est PAS comparable entre sous-périodes
+                                 # (sa référence est la prévalence, qui varie)
+  cross_period: auc_roc          # métrique correcte pour la comparaison temporelle
+  reported:
+    - recall_at_fixed_alert_budget
+    - brier
+    - calibration_curve
+  discarded:
+    - accuracy                   # "jamais de défaut" a raison ~95 % du temps
+    - auc_pr_cross_period
+  alert_budget: 0.10             # part d'observations alertées ; à justifier
+  placebo:
+    within_year_permutation: true  # permutation intra-année du bloc volonté
+  bootstrap: block               # jamais i.i.d. : les défauts arrivent par vagues
+  cluster: country
