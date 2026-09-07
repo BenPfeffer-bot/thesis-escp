@@ -1,1 +1,7 @@
+# Python specific
+__pycache__/
+
 .venv/
+
+# database
+db/
